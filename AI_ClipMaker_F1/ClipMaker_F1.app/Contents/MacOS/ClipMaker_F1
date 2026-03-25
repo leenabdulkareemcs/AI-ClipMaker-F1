@@ -1,0 +1,66 @@
+#!/bin/bash
+
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+
+if echo "$APP_DIR" | grep -q '/private/var/folders'; then
+    BUNDLE="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    BUNDLE_PARENT="$(dirname "$BUNDLE")"
+    DEST="$HOME/Desktop/$(basename "$BUNDLE_PARENT")"
+    cp -R "$BUNDLE_PARENT" "$DEST" 2>/dev/null
+    if [ $? -eq 0 ]; then
+        NEW_APP="$DEST/$(basename "$BUNDLE")"
+        chmod +x "$NEW_APP/Contents/MacOS/ClipMaker_F1"
+        open "$NEW_APP"
+    else
+        osascript -e 'tell application "Terminal" to do script "echo Move the AI_ClipMaker_F1 folder to Desktop or Documents first."'
+    fi
+    exit 0
+fi
+
+osascript << LAUNCHEOF
+tell application "Terminal"
+    activate
+    do script "
+        clear &&
+        echo '' &&
+        echo ' ================================================' &&
+        echo '   AI ClipMaker F1 - Starting up...' &&
+        echo ' ================================================' &&
+        echo '' &&
+
+        if command -v python3 &>/dev/null; then PYTHON=python3; PIP=pip3
+        elif command -v python &>/dev/null; then PYTHON=python; PIP=pip
+        else echo ' [!] Python not installed. Visit https://www.python.org/downloads' && exit 1; fi &&
+
+        echo ' [OK] Python found.' &&
+        echo ' [..] Checking core packages...' &&
+        for P in streamlit moviepy pandas requests plotly anthropic gtts; do
+            if ! \$PYTHON -m pip show \$P &>/dev/null; then
+                echo \" [..] Installing \$P ...\" && \$PIP install \$P --quiet; fi
+        done &&
+
+        if ! \$PYTHON -c 'import tkinter' &>/dev/null; then
+            \$PIP install tk --quiet 2>/dev/null; fi &&
+
+        if ! command -v ffmpeg &>/dev/null; then
+            echo '' &&
+            echo ' [!] FFmpeg not found. Install with: brew install ffmpeg' &&
+            echo '     Or download from https://ffmpeg.org/download.html' && echo ''; fi &&
+
+        echo '' &&
+        echo ' Optional AI packages (run in Terminal manually if needed):' &&
+        echo '   pip install librosa scipy           # Phase 2 - Audio AI' &&
+        echo '   pip install ultralytics opencv-python  # Phase 3 - Vision AI' &&
+        echo '' &&
+
+        echo ' [OK] Core packages ready.' &&
+        mkdir -p \"\$HOME/.streamlit\" &&
+        printf '[general]\nemail = \"\"\n' > \"\$HOME/.streamlit/credentials.toml\" &&
+        echo ' [..] Opening AI ClipMaker F1 in your browser...' &&
+        echo ' Keep this window open. Close it when done.' &&
+        echo ' ================================================' && echo '' &&
+
+        python3 -m streamlit run '$APP_DIR/app_streamlit.py' --server.headless false --browser.gatherUsageStats false
+    "
+end tell
+LAUNCHEOF
